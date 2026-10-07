@@ -2058,7 +2058,7 @@
       else if (fs === "approved") { sbCls = "sb-approved"; sbT = "✓ Flight Approved"; sbD = "You are cleared to fly. Safe skies!"; }
       else if (fs === "denied") { sbCls = "sb-denied"; sbT = "✗ Request Denied"; sbD = "Authority denied. Contact ATC for details."; }
       else if (fs === "breach") { sbCls = "sb-denied"; sbT = "⚠ Geofence Breach"; sbD = "Return to safe area. Authority override active."; }
-      else if (!online) { sbCls = "sb-none"; sbT = "● Drone Offline"; sbD = "Power on drone and ensure WiFi is connected."; }
+      else if (!online) { sbCls = "sb-none"; sbT = "● Drone Offline"; sbD = "Power on drone and ensure WiFi is connected. This drone's ID is '" + d.id + "'; the server currently sees: " + (Object.keys(liveFleet).join(", ") || "no drones") + ". The ID must match the firmware droneID exactly (case-sensitive), otherwise REQUEST FLIGHT stays disabled."; }
       var ico = { Quadcopter: "🚁", Hexacopter: "🚁", Octocopter: "🚁", "Fixed Wing": "✈️", VTOL: "✈️" }[d.type] || "🚁";
 
       db.innerHTML =
