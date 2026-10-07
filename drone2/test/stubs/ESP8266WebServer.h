@@ -10,4 +10,5 @@ struct ESP8266WebServer { std::map<std::string, void (*)()> routes; ESP8266WebSe
   void send(int, const char*, const String& b) { g_lastBody = b.s; }
   void send(int, const char*, const char* b) { g_lastBody = b; }
   void send_P(int, const char*, const char* b) { g_lastBody = b; }
+  String argv; String arg(const char*) { return argv; }
   void call(const char* p) { routes[p](); } };

@@ -19,4 +19,13 @@ g++ -std=c++17 -x c++ -DESP8266 -Wall -Wno-unused-function -Wno-address-of-packe
 for sc in no_data noise rx_only two_way ack_only echo text reset page replies_no_heartbeat; do
   build/tl "$sc" || status=1
 done
+# --- pixhawk_esp_datacheck (library-free sketch) ---
+grep -oE 'case [0-9]+:[[:space:]]+return [0-9]+;' ../../pixhawk_esp_datacheck/pixhawk_esp_datacheck.ino \
+  | sed -E 's/case ([0-9]+):[[:space:]]+return ([0-9]+);/{\1,\2},/' > build/crc_ids.inc
+g++ -std=c++17 -I"$EXT/c_library_v2" -I. -w -o build/crc_apm crc_apm.cpp && build/crc_apm || status=1
+g++ -std=c++17 -x c++ -DESP8266 -Wall -Wno-unused-function -Wno-address-of-packed-member -Wno-misleading-indentation -Wno-format-truncation \
+    -Istubs -I"$EXT/ArduinoJson/src" -I. -o build/pt pixhawk_harness.cpp
+for sc in encoder two_way two_way_mavlink1 rx_only no_data echo armed_parse baud_scan resync json page reset; do
+  build/pt "$sc" || status=1
+done
 exit $status

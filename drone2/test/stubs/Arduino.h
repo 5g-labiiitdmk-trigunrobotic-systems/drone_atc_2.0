@@ -24,6 +24,7 @@ class String {
   String(unsigned long v) : s(std::to_string(v)) {}
   String(double v, int d) { char b[64]; snprintf(b, sizeof b, "%.*f", d, v); s = b; }
   const char* c_str() const { return s.c_str(); }
+  long toInt() const { return atol(s.c_str()); }
   unsigned length() const { return s.size(); }
   void trim() { while (!s.empty() && isspace((unsigned char)s.back())) s.pop_back(); size_t i = 0; while (i < s.size() && isspace((unsigned char)s[i])) i++; s = s.substr(i); }
   String& operator+=(const String& o) { s += o.s; return *this; }
@@ -39,6 +40,7 @@ struct HardwareSerial {
   std::deque<uint8_t> rx; std::vector<uint8_t> tx; bool swapped = false; size_t rxSize = 0;
   void setRxBufferSize(size_t n) { rxSize = n; }
   void begin(unsigned long) {}
+  unsigned long baud = 0; void updateBaudRate(unsigned long b) { baud = b; }
   void swap() { swapped = true; }
   int available() { return (int)rx.size(); }
   int read() { if (rx.empty()) return -1; uint8_t b = rx.front(); rx.pop_front(); return b; }
