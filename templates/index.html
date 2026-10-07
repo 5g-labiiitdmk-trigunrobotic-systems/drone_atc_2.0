@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Trigun Robotics — Drone ATC</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="/static/leaflet/leaflet.css" />
   <link
     href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Source+Sans+3:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
     rel="stylesheet">
@@ -2221,7 +2221,7 @@
     </div>
   </div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="/static/leaflet/leaflet.js"></script>
   <script>
     var alarmEnabled = true, alarmActive = false, alarmInterval = null, audioCtx = null;
     var prevBreachIds = new Set(), breachAlarmIds = new Set();
@@ -2252,12 +2252,13 @@
     function removeUser(u) { if (!confirm("Remove user @" + u + "?")) return; saveUsers(getUsers().filter(function (x) { return x.username !== u; })); renderUmgmt(); }
     function openModal(id) { document.getElementById(id).classList.remove("hide"); }
     function closeModal(id) { document.getElementById(id).classList.add("hide"); }
-    (function () { var s = getSession(); if (s) { currentUser = s; launchDashboard(); } })();
 
     var BASE = window.location.origin;
+    var HOME_POS = [28.554862, 77.044636], HOME_ZOOM = 17, HOME_LABEL = "Hall No. 1"; // tune HOME_POS to the exact hall
     function authHdr() { return { "Content-Type": "application/json", "X-Authority-Key": ADMIN_KEY }; }
     var map, markers = {}, selectedId = null, ctrlState = {}, lastFleet = {}, seenRequests = {}, seenArmRequests = {}, dashInit = false;
-    function initDashboard() { if (dashInit) return; dashInit = true; map = L.map("map", { zoomControl: false }).setView([15.7608, 78.0382], 16); L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(map); L.control.zoom({ position: "topright" }).addTo(map); attachMapDrawHandlers(); fetchZones(); addLog("Fleet Control online", "ok"); poll(); pollRequests(); pollArmRequests(); setInterval(poll, 1000); setInterval(pollRequests, 2000); setInterval(pollArmRequests, 1000); setInterval(fetchZones, 10000); setupJoystick(); setupKeyboard(); }
+    function initDashboard() { if (dashInit) return; dashInit = true; try { map = L.map("map", { zoomControl: false }).setView(HOME_POS, HOME_ZOOM); L.marker(HOME_POS, { title: HOME_LABEL }).addTo(map).bindPopup("<b>" + HOME_LABEL + "</b><br>Yashobhoomi, Dwarka, Delhi"); L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(map); L.control.zoom({ position: "topright" }).addTo(map); } catch (e) { map = null; console.error("Map init failed:", e); }
+      if (map) attachMapDrawHandlers(); fetchZones(); addLog("Fleet Control online", "ok"); poll(); pollRequests(); pollArmRequests(); setInterval(poll, 1000); setInterval(pollRequests, 2000); setInterval(pollArmRequests, 1000); setInterval(fetchZones, 10000); setupJoystick(); setupKeyboard(); }
     function addLog(msg, type) { var el = document.getElementById("log-body"), d = document.createElement("div"); var t = new Date(); var ts = t.getHours().toString().padStart(2, "0") + ":" + t.getMinutes().toString().padStart(2, "0") + ":" + t.getSeconds().toString().padStart(2, "0"); d.className = "ll " + (type || "info"); d.innerHTML = '<span class="ts">' + ts + '</span><span class="msg">' + msg + '</span>'; el.insertBefore(d, el.firstChild); while (el.children.length > 25) el.removeChild(el.lastChild); }
     function droneIcon(armed, breach, override) { var c = breach ? "#f43f5e" : override ? "#f59e0b" : "#6366f1"; var shadow = breach ? "drop-shadow(0 3px 10px rgba(244,63,94,.65))" : override ? "drop-shadow(0 3px 10px rgba(245,158,11,.55))" : "drop-shadow(0 3px 10px rgba(99,102,241,.55))"; var alert = breach ? '<circle cx="23" cy="8" r="6" fill="#f43f5e" stroke="rgba(255,255,255,0.5)" stroke-width="1"/><text x="23" y="12" text-anchor="middle" font-size="8" fill="#fff" font-weight="bold">!</text>' : ""; var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 34 34" style="filter:' + shadow + '"><circle cx="17" cy="17" r="14" fill="' + c + '" fill-opacity=".18" stroke="' + c + '" stroke-width="1.5" stroke-opacity=".7"/><polygon points="17,6 21,17 17,21 13,17" fill="' + c + '"/><circle cx="7" cy="7" r="2.5" fill="' + c + '" opacity=".7"/><circle cx="27" cy="7" r="2.5" fill="' + c + '" opacity=".7"/><circle cx="7" cy="27" r="2.5" fill="' + c + '" opacity=".7"/><circle cx="27" cy="27" r="2.5" fill="' + c + '" opacity=".7"/>' + alert + '</svg>'; return L.divIcon({ html: svg, iconSize: [36, 36], iconAnchor: [18, 18], className: "" }); }
     function poll() { Promise.all([fetch(BASE + "/get_fleet"), fetch(BASE + "/control_state")]).then(function (rs) { return Promise.all([rs[0].json(), rs[1].json()]); }).then(function (data) { var prevFleet = Object.assign({}, lastFleet); ctrlState = data[1]; Object.keys(prevFleet).forEach(function (id) { if (!data[0][id]) { addLog("Drone " + id + " went offline", "warn"); playOfflineBeep(); } }); renderFleet(data[0]); lastFleet = data[0]; document.getElementById("sys-dot").style.background = "#10b981"; document.getElementById("sys-txt").textContent = "Live"; }).catch(function () { document.getElementById("sys-dot").style.background = "#f43f5e"; document.getElementById("sys-txt").textContent = "Unreachable"; }); }
@@ -2315,6 +2316,7 @@
     function startDrawZone() { if (!map || !isAdmin) return; drawMode = true; drawStart = null; if (drawRect) { map.removeLayer(drawRect); drawRect = null; } map.getContainer().style.cursor = "crosshair"; addLog("Click: first corner", "info"); var b = document.getElementById("b-draw-zone"); b.textContent = "✖ CANCEL"; b.onclick = cancelDrawZone; }
     function cancelDrawZone() { drawMode = false; drawStart = null; if (drawRect) { map.removeLayer(drawRect); drawRect = null; } map.getContainer().style.cursor = ""; var b = document.getElementById("b-draw-zone"); b.textContent = "✎ DRAW ON MAP"; b.onclick = startDrawZone; }
     document.addEventListener("keydown", function (e) { if (e.key === "Enter" && document.getElementById("login-wrap") && !document.getElementById("login-wrap").classList.contains("hide")) { if (document.getElementById("form-register").style.display !== "none") doRegister(); else doLogin(); } });
+      (function () { var s = getSession(); if (s) { currentUser = s; launchDashboard(); } })();
   </script>
 </body>
 

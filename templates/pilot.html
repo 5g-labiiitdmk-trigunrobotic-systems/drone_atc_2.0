@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>IIITDMK — Pilot Portal</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="/static/leaflet/leaflet.css" />
   <link
     href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
     rel="stylesheet">
@@ -1835,7 +1835,7 @@
     </div>
   </div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="/static/leaflet/leaflet.js"></script>
   <script>
     // ════════════════════════════════════════
     //  STATE
@@ -2098,7 +2098,7 @@
       setTimeout(function () {
         if (miniMap) { miniMap.remove(); miniMap = null; }
         var mel = document.getElementById("mini-map"); if (!mel) return;
-        miniMap = L.map("mini-map", { zoomControl: false, attributionControl: false }).setView([15.7608, 78.0382], 15);
+        miniMap = L.map("mini-map", { zoomControl: false, attributionControl: false }).setView([28.554862, 77.044636], 17); // Yashobhoomi, Hall No. 1
         L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(miniMap);
         if (online && lat && lon) {
           var c = cs.breach ? "#f43f5e" : "#6366f1";

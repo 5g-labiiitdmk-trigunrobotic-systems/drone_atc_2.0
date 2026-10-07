@@ -7,6 +7,7 @@ AUTH_KEY        = "iiitdm-authority-2026"   # must match ADMIN_KEY in index.html
 STATE_FILE      = "state_backup.json"
 SAVE_DEBOUNCE_S = 5.0
 STALE_BREACH_S  = 15
+ARM_REQ_TTL_S   = 35   # ESP gives up after 30s
 _last_save      = 0.0
 
 lock            = threading.Lock()
@@ -17,14 +18,7 @@ command_queue   = {}
 arm_requests    = {}
 # { "Drone-1": { "status": "none|pending|approved|denied" } }
 
-GEOFENCE_ZONES = [
-    {"id":"Z1","label":"Admin Block",
-     "lat_min":15.760000,"lat_max":15.762200,"lon_min":78.037000,"lon_max":78.039200},
-    {"id":"Z2","label":"Lab Complex",
-     "lat_min":15.763000,"lat_max":15.765200,"lon_min":78.033800,"lon_max":78.036200},
-    {"id":"Z3","label":"Power Station",
-     "lat_min":15.757800,"lat_max":15.759200,"lon_min":78.039800,"lon_max":78.041400},
-]
+GEOFENCE_ZONES = []   # draw zones from the dashboard; none preset for Yashobhoomi
 geo_lock      = threading.Lock()
 _zone_counter = 4
 
@@ -63,7 +57,9 @@ def load_state():
         control_state     = d.get("control",  {})
         flight_requests   = d.get("requests", {})
         arm_requests      = d.get("arm_requests", {})
-        GEOFENCE_ZONES[:] = d.get("geofence", GEOFENCE_ZONES)
+        old_defaults = {("Z1","Admin Block"),("Z2","Lab Complex"),("Z3","Power Station")}  # legacy Kurnool zones
+        GEOFENCE_ZONES[:] = [z for z in d.get("geofence", GEOFENCE_ZONES)
+                             if (z.get("id"), z.get("label")) not in old_defaults]
         _zone_counter     = d.get("zone_counter", 4)
         print(f"[INFO] State restored: {len(fleet_data)} drone(s), {len(GEOFENCE_ZONES)} zone(s)")
     except Exception as e:
@@ -160,7 +156,8 @@ def update():
             if drone_id in flight_requests:
                 flight_requests[drone_id]["status"] = "none"
             print(f"[RESET] {drone_id} disarmed â€” authorization reset")
-        if was_armed and not is_armed and drone_id in arm_requests:
+        if (was_armed and not is_armed and drone_id in arm_requests
+                and arm_requests[drone_id].get("status") in ("approved", "denied")):
             arm_requests[drone_id]["status"] = "none"
         cs["_was_armed"] = is_armed
 
@@ -238,15 +235,25 @@ def drone_arm_request():
     if not drone_id:
         return jsonify({"status":"error","reason":"no drone_id"}), 400
     with lock:
-        arm_requests[drone_id] = {"status":"pending"}
+        existing = arm_requests.get(drone_id, {})
+        if existing.get("status") != "pending":
+            arm_requests[drone_id] = {"status":"pending","requested_at":time.time()}
     save_state(force=True)
     print(f"[ARM REQUEST] {drone_id} â€” FC requesting arm authorization")
     return jsonify({"status":"pending"})
 
+def _expire_arm(drone_id):
+    """Call with `lock` held. Pending requests older than the TTL become 'none'."""
+    req = arm_requests.get(drone_id, {"status":"none"})
+    if req.get("status") == "pending" and time.time() - req.get("requested_at", 0) > ARM_REQ_TTL_S:
+        req["status"] = "none"
+        arm_requests[drone_id] = req
+    return dict(req)
+
 @app.route("/drone/poll_arm_permission/<drone_id>")
 def poll_arm_permission(drone_id):
     with lock:
-        req = arm_requests.get(drone_id, {"status":"none"})
+        req = _expire_arm(drone_id)
     return jsonify(req)
 
 @app.route("/authority/approve_arm/<drone_id>", methods=["POST"])
@@ -270,7 +277,9 @@ def authority_deny_arm(drone_id):
 @app.route("/authority/arm_requests")
 def get_arm_requests():
     with lock:
-        snapshot = dict(arm_requests)
+        for did in list(arm_requests):
+            _expire_arm(did)
+        snapshot = {k: dict(v) for k, v in arm_requests.items()}
     return jsonify(snapshot)
 
 # â”€â”€ Authority commands â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
