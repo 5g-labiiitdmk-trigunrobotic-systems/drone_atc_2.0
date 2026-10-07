@@ -3,6 +3,17 @@ import time, json, os, threading, socket
 
 app = Flask(__name__)
 
+# Hide the dashboard's constant polling from the console; keep drone traffic
+# (/update, /drone/*) and approvals visible.
+import logging
+class _QuietPolls(logging.Filter):
+    NOISY = ("GET /get_fleet", "GET /control_state", "GET /pilot/requests",
+             "GET /authority/arm_requests", "GET /geofence/zones")
+    def filter(self, record):
+        msg = record.getMessage()
+        return not any(n in msg for n in self.NOISY)
+logging.getLogger("werkzeug").addFilter(_QuietPolls())
+
 AUTH_KEY        = "iiitdm-authority-2026"   # must match ADMIN_KEY in index.html
 STATE_FILE      = "state_backup.json"
 SAVE_DEBOUNCE_S = 5.0
@@ -261,6 +272,13 @@ def authority_approve_arm(drone_id):
     if not check_auth(): return auth_required()
     with lock:
         arm_requests[drone_id] = {"status":"approved"}
+        # Arm approval is the same authority as flight approval: the drone
+        # firmware only lets the FC stay armed when flight_approved is set.
+        if drone_id not in control_state:
+            control_state[drone_id] = default_control()
+        control_state[drone_id]["flight_approved"] = True
+        flight_requests[drone_id] = {"drone_id":drone_id,"status":"approved",
+                                     "requested_at":time.time()}
     save_state(force=True)
     print(f"[ARM APPROVED] {drone_id}")
     return jsonify({"status":"approved"})
@@ -270,6 +288,10 @@ def authority_deny_arm(drone_id):
     if not check_auth(): return auth_required()
     with lock:
         arm_requests[drone_id] = {"status":"denied"}
+        if drone_id in control_state:
+            control_state[drone_id]["flight_approved"] = False
+        if drone_id in flight_requests:
+            flight_requests[drone_id]["status"] = "denied"
     save_state(force=True)
     print(f"[ARM DENIED] {drone_id}")
     return jsonify({"status":"denied"})
