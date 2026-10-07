@@ -65,6 +65,8 @@ int main(int argc, char** argv) {
     pxAlive = false; pxHears = false; run(3200); bool v1 = false, v2 = false, ok = true; int n = 0;
     for (auto& m : got) { if (m.msgid != MAVLINK_MSG_ID_PARAM_REQUEST_READ) continue; n++; if (m.magic == 0xFE) v1 = true; if (m.magic == 0xFD) v2 = true;
       mavlink_param_request_read_t p; mavlink_msg_param_request_read_decode(&m, &p); if (p.target_system != 1 || p.target_component != 1 || p.param_index != -1 || strncmp(p.param_id, "SYSID_THISMAV", 13)) ok = false; }
+    int hbs = 0; for (auto& m : got) if (m.msgid == MAVLINK_MSG_ID_HEARTBEAT && m.sysid == 255) hbs++;
+    CHECK(hbs >= 2, "our heartbeat is also sent each round and passes the real CRC check");
     CHECK(n >= 2 && v1 && v2, "requests pass the REAL library's CRC check, in MAVLink 1 and 2"); CHECK(ok, "target 1/1, index -1, name SYSID_THISMAV");
   }
   if (sc == "flaky_start") { run(2000); pxAlive = true; pxHears = true; run(8000); CHECK(has(reportText(), "ALL OK"), "becomes ALL OK once the link works"); }

@@ -12,6 +12,7 @@
 
   Open Tools > Serial Monitor at 115200 baud. It prints ALL OK only if data flows both ways.
 */
+#include <ESP8266WiFi.h>
 #include <SoftwareSerial.h>
 
 #define BAUD 57600
@@ -42,21 +43,27 @@ static void crcAdd(uint8_t b, uint16_t &crc) {
   crc = (crc >> 8) ^ ((uint16_t)t << 8) ^ ((uint16_t)t << 3) ^ ((uint16_t)t >> 4);
 }
 
-// ---- ESP -> Pixhawk: ask for the parameter SYSID_THISMAV; the Pixhawk MUST answer ----
-static void sendRequest(bool mavlink1) {
+// ---- ESP -> Pixhawk: send a MAVLink frame (v1 or v2) ----
+static void sendFrame(uint8_t msgid, const uint8_t *pl, uint8_t plen, uint8_t extra, bool mavlink1) {
+  uint8_t f[48]; size_t n = 0;
+  uint16_t crc = 0xFFFF;
+  if (mavlink1) { f[0] = 0xFE; f[1] = plen; f[2] = seqTx++; f[3] = 255; f[4] = 200; f[5] = msgid; n = 6; }
+  else          { f[0] = 0xFD; f[1] = plen; f[2] = 0; f[3] = 0; f[4] = seqTx++; f[5] = 255; f[6] = 200; f[7] = msgid; f[8] = 0; f[9] = 0; n = 10; }
+  memcpy(f + n, pl, plen); n += plen;
+  for (size_t i = 1; i < n; i++) crcAdd(f[i], crc);
+  crcAdd(extra, crc);
+  f[n++] = crc & 0xFF; f[n++] = crc >> 8;
+  fc.write(f, n);
+}
+// Each round: our heartbeat, then a request the Pixhawk MUST answer (parameter SYSID_THISMAV)
+static void sendRound(bool mavlink1) {
+  uint8_t hb[9] = {0};  hb[4] = 18; hb[5] = 8; hb[7] = 4; hb[8] = 3;       // companion computer heartbeat
+  sendFrame(0, hb, 9, 50, mavlink1);
   uint8_t pl[20] = {0};
   pl[0] = 0xFF; pl[1] = 0xFF;                       // param index -1 = "find by name"
   pl[2] = 1; pl[3] = 1;                             // Pixhawk system 1, component 1
   memcpy(pl + 4, "SYSID_THISMAV", 13);
-  uint8_t f[40]; size_t n = 0;
-  uint16_t crc = 0xFFFF;
-  if (mavlink1) { f[0] = 0xFE; f[1] = 20; f[2] = seqTx++; f[3] = 255; f[4] = 200; f[5] = 20; n = 6; }
-  else          { f[0] = 0xFD; f[1] = 20; f[2] = 0; f[3] = 0; f[4] = seqTx++; f[5] = 255; f[6] = 200; f[7] = 20; f[8] = 0; f[9] = 0; n = 10; }
-  memcpy(f + n, pl, 20); n += 20;
-  for (size_t i = 1; i < n; i++) crcAdd(f[i], crc);
-  crcAdd(214, crc);                                 // CRC_EXTRA of PARAM_REQUEST_READ
-  f[n++] = crc & 0xFF; f[n++] = crc >> 8;
-  fc.write(f, n);
+  sendFrame(20, pl, 20, 214, mavlink1);
 }
 
 // ---- Pixhawk -> ESP: find valid MAVLink frames in the byte stream ----
@@ -93,6 +100,7 @@ static void feed(uint8_t b) {
 }
 
 void setup() {
+  WiFi.mode(WIFI_OFF);     // WiFi activity disturbs the bit-banged software serial (corrupts what we send)
   Serial.begin(115200);
   fc.begin(BAUD);
   Serial.println("\nPixhawk <-> ESP8266 connection check started...");
@@ -103,7 +111,7 @@ void loop() {
 
   if (millis() - lastRound >= 1500) {               // ask the Pixhawk something (alternate MAVLink 1 / 2)
     lastRound = millis();
-    sendRequest(rounds & 1);
+    sendRound(rounds & 1);
     rounds++;
   }
 
@@ -115,7 +123,7 @@ void loop() {
     Serial.printf("Pixhawk -> ESP : %s   (bytes %lu, heartbeats %lu)\n", rxOk ? "OK" : "NOT OK", (unsigned long)rxBytes, (unsigned long)heartbeats);
     Serial.printf("ESP -> Pixhawk : %s   (requests %lu, answers %lu)\n", txOk ? "OK" : "NOT OK", (unsigned long)rounds, (unsigned long)replies);
     if (rxOk && txOk)        Serial.println(">>> ALL OK - connection is good in BOTH directions");
-    else if (rxOk && rounds >= 4) Serial.println(">>> PROBLEM: Pixhawk -> ESP works but ESP -> Pixhawk does NOT. Check the wire D8 -> Pixhawk RX, GND, and SERIALn_PROTOCOL = 2.");
+    else if (rxOk && rounds >= 4) Serial.println(">>> PROBLEM: Pixhawk -> ESP works but ESP -> Pixhawk does NOT. Check the wire D8 -> Pixhawk TELEM RX pin (pin 3), GND, and SERIALn_PROTOCOL = 2. Test the ESP alone: unplug the Pixhawk, jumper D7 to D8.");
     else if (rxOk)           Serial.println(">>> Pixhawk -> ESP works, still testing ESP -> Pixhawk...");
     else if (echo > 0)       Serial.println(">>> PROBLEM: the ESP is hearing itself (D7 and D8 are connected together). Connect the Pixhawk instead.");
     else if (rxBytes > 0)    Serial.println(">>> PROBLEM: data arrives but is not valid MAVLink. Check SERIALn_BAUD = 57 (57600), SERIALn_PROTOCOL = 2 and the GND wire.");

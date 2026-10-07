@@ -30,8 +30,9 @@ for sc in encoder two_way two_way_mavlink1 rx_only no_data echo armed_parse baud
 done
 # --- pixhawk_esp_simple_check ---
 mkdir -p build/simple_inc && printf '#pragma once\n' > build/simple_inc/SoftwareSerial.h
+printf '#pragma once\n#define WIFI_OFF 0\nstruct WiFiClass { void mode(int) {} };\nstatic WiFiClass WiFi;\n' > build/simple_inc/ESP8266WiFi.h
 g++ -std=c++17 -x c++ -Wall -Wno-unused-function -Wno-address-of-packed-member -Wno-misleading-indentation \
-    -Istubs -Ibuild/simple_inc -o build/simple simple_harness.cpp
+    -Ibuild/simple_inc -Istubs -o build/simple simple_harness.cpp
 for sc in all_ok all_ok_mavlink1 rx_only no_data garbage echo requests flaky_start; do
   build/simple "$sc" || status=1
 done
