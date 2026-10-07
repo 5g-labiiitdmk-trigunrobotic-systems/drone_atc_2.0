@@ -19,6 +19,7 @@ STATE_FILE      = "state_backup.json"
 SAVE_DEBOUNCE_S = 5.0
 STALE_BREACH_S  = 15
 ARM_REQ_TTL_S   = 35   # ESP gives up after 30s
+ARM_APPROVAL_WINDOW_S = 120   # an arm approval lapses if the pilot does not arm in time
 _last_save      = 0.0
 
 lock            = threading.Lock()
@@ -171,6 +172,8 @@ def update():
                 and arm_requests[drone_id].get("status") in ("approved", "denied")):
             arm_requests[drone_id]["status"] = "none"
         cs["_was_armed"] = is_armed
+        if is_armed:
+            cs.pop("arm_approved_at", None)   # approval was used
 
         # Geofence check (skip if GPS not fixed)
         if lat != 0.0 and lon != 0.0:
@@ -277,6 +280,7 @@ def authority_approve_arm(drone_id):
         if drone_id not in control_state:
             control_state[drone_id] = default_control()
         control_state[drone_id]["flight_approved"] = True
+        control_state[drone_id]["arm_approved_at"] = time.time()
         flight_requests[drone_id] = {"drone_id":drone_id,"status":"approved",
                                      "requested_at":time.time()}
     save_state(force=True)
@@ -482,6 +486,14 @@ def _watchdog():
                       if now - d.get("last_seen", 0) < 10}
             changed = False
             for did, cs in list(control_state.items()):
+                t0 = cs.get("arm_approved_at")
+                if t0 and now - t0 > ARM_APPROVAL_WINDOW_S:
+                    cs["flight_approved"] = False
+                    cs.pop("arm_approved_at", None)
+                    if did in flight_requests: flight_requests[did]["status"] = "none"
+                    if did in arm_requests:    arm_requests[did]["status"] = "none"
+                    print(f"[WATCHDOG] {did} arm approval lapsed (not used in {ARM_APPROVAL_WINDOW_S}s)")
+                    changed = True
                 if (cs.get("breach") and cs.get("override_by") == "geofence"
                         and did not in active and cs.get("locked_at")
                         and now - cs["locked_at"] > STALE_BREACH_S):

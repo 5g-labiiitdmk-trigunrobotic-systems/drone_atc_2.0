@@ -73,8 +73,13 @@ bool          flightApproved    = false;
 bool          wasArmedInFlight  = false;
 unsigned long lastArmRequestMs  = 0;
 #define ARM_REQUEST_MIN_GAP_MS 5000
+#define DISARM_RETRY_MS        250
+unsigned long lastDisarmMs      = 0;
+bool          telNow            = false;   // push telemetry immediately
 
 void requestArmAuthority();
+void enforceArmLock();
+void sendTelemetry();
 
 #define DBG(x)    Serial.println(x)
 #define DBGf(...) Serial.printf(__VA_ARGS__)
@@ -201,10 +206,11 @@ void parseMAVLink() {
         bool currentArmed = (hb.base_mode & MAV_MODE_FLAG_SAFETY_ARMED) != 0;
 
         // FIX: Strict arming prevention – only allow if approved
-        if (currentArmed && !prevArmed && !flightApproved) {
-          DBG("[SAFETY] Arm blocked — no approval. Disarming.");
-          sendDisarm(); delay(200); sendDisarm();
-          requestArmAuthority();
+        // Level-triggered: keep forcing disarm on EVERY heartbeat while armed
+        // without approval (an edge-only check gave up after one failed try).
+        if (currentArmed && !flightApproved) {
+          armed = true;
+          enforceArmLock();
         }
         if (currentArmed && !prevArmed && flightApproved)
           DBG("[INFO] Arm approved — pilot cleared to fly");
@@ -239,6 +245,18 @@ void parseMAVLink() {
           lon = p.lon / 10000000.0f;
           alt = p.relative_alt / 1000.0f;
           gpsValid = true;
+        }
+        break;
+      }
+      case MAVLINK_MSG_ID_STATUSTEXT: {
+        // ArduPilot announces "Arming motors" immediately; the heartbeat that
+        // carries the armed flag can lag up to 1 s. React to the text first.
+        mavlink_statustext_t st;
+        mavlink_msg_statustext_decode(&msg, &st);
+        if (strstr(st.text, "Arming motors") && !flightApproved) {
+          DBGf("[SAFETY] FC says '%s' without approval\n", st.text);
+          armed = true;
+          enforceArmLock();
         }
         break;
       }
@@ -294,6 +312,20 @@ void sendFlightRequest() {
   int code = http.POST("{\"drone_id\":\"" + String(droneID) + "\"}");
   DBGf("[REQ] Flight request → HTTP %d\n", code);
   http.end();
+}
+
+// Forces a disarm (retried every DISARM_RETRY_MS while still armed), asks the
+// dashboard for authority and pushes telemetry right away so the alert is not
+// delayed by the 1 s telemetry timer.
+void enforceArmLock() {
+  if (millis() - lastDisarmMs >= DISARM_RETRY_MS) {
+    lastDisarmMs = millis();
+    DBG("[SAFETY] Armed without approval — forcing disarm");
+    sendDisarm();
+    sendTelemetry();      // armed=true reaches the dashboard immediately
+  }
+  telNow = true;
+  requestArmAuthority();
 }
 
 // Asks the ATC dashboard for arm authority (shows an ARM REQUEST card).
@@ -508,7 +540,8 @@ void loop() {
   }
 
   static unsigned long lastTel = 0;
-  if (millis() - lastTel > 1000) {
+  if (telNow || millis() - lastTel > 1000) {
+    telNow = false;
     sendTelemetry();
     pollCommands();
     lastTel = millis();
