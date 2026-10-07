@@ -55,3 +55,9 @@ simulated flight controller and server: discovery, telemetry format, unauthorize
 STATUSTEXT fast path, the full approval flow, armed-at-boot, airborne guard, every command,
 sysid/compid learning, GCS heartbeat rejection, stale approval, and battery failsafe.
 It does not test the real radio, UART timing or the flight controller itself - bench-test with props off.
+
+## Link test (run this first if FC and ESP don't seem to talk both ways)
+`../drone2_linktest/drone2_linktest.ino` is a standalone diagnostic. It makes its own hotspot
+`DroneLinkTest` (password `12345678`); open `http://192.168.4.1` for a live verdict:
+FC -> ESP (heartbeats), ESP -> FC (the FC must answer a parameter read and a command), and an
+echo test (unplug the FC, jumper D7 to D8). Copy the MAVLink headers into `drone2_linktest/mavlink/` too.

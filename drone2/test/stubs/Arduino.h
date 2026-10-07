@@ -1,4 +1,5 @@
 #pragma once
+#define PROGMEM
 #include <string>
 #include <vector>
 #include <deque>

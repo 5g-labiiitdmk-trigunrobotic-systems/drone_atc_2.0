@@ -7,7 +7,7 @@
 #include <algorithm>
 unsigned long g_ms = 0;
 HardwareSerial Serial, Serial1;
-WiFiClass WiFi; EspClass ESP;
+WiFiClass WiFi; EspClass ESP; std::string g_lastBody;
 int (*g_http)(const char*, const std::string&, const std::string&, std::string&);
 #include "../drone2.ino"
 

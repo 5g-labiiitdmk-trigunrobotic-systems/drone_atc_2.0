@@ -14,4 +14,9 @@ status=0
 for sc in discovery telemetry unauth_arm disarm_retry statustext approved_flow boot_armed airborne commands targets gcs_ignored stale_approval battery; do
   build/t "$sc" || status=1
 done
+g++ -std=c++17 -x c++ -DESP8266 -Wall -Wno-unused-function -Wno-address-of-packed-member \
+    -Istubs -I"$EXT/ArduinoJson/src" -o build/tl linktest_harness.cpp
+for sc in no_data noise rx_only two_way ack_only echo text reset page replies_no_heartbeat; do
+  build/tl "$sc" || status=1
+done
 exit $status
