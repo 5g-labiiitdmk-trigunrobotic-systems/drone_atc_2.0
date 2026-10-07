@@ -97,6 +97,7 @@ unsigned long lastArmRequestMs  = 0;
 #define ARM_REQUEST_MIN_GAP_MS 5000
 #define DISARM_RETRY_MS        250
 unsigned long lastDisarmMs      = 0;
+uint16_t      lockHits          = 0;   // times the arm lock fired (diagnostic)
 bool          telNow            = false;   // push telemetry immediately
 
 void requestArmAuthority();
@@ -325,6 +326,9 @@ void sendTelemetry() {
     ",\"mav_hb\":" + (heartBeatOK ? "true" : "false") +
     ",\"armed\":"  + (armed       ? "true" : "false")  +
     ",\"gps_ok\":" + (gpsValid    ? "true" : "false")  +
+    ",\"fw_approved\":" + (flightApproved ? "true" : "false") +
+    ",\"fw_arm_allowed\":" + (armAllowed ? "true" : "false") +
+    ",\"fw_lock_hits\":" + String(lockHits) +
     ",\"ip\":\""   + WiFi.localIP().toString()         + "\"}";
   int code = http.POST(json);
   if (code == 200) DBG("[TEL] ✓ OK");
@@ -350,6 +354,7 @@ void sendFlightRequest() {
 void enforceArmLock() {
   if (millis() - lastDisarmMs >= DISARM_RETRY_MS) {
     lastDisarmMs = millis();
+    lockHits++;
     DBG("[SAFETY] Armed without approval — forcing disarm");
     sendDisarm();
     sendTelemetry();      // armed=true reaches the dashboard immediately

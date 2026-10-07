@@ -73,6 +73,14 @@ def load_state():
         GEOFENCE_ZONES[:] = [z for z in d.get("geofence", GEOFENCE_ZONES)
                              if (z.get("id"), z.get("label")) not in old_defaults]
         _zone_counter     = d.get("zone_counter", 4)
+        # Approvals are short-lived safety state: never carry them across restarts.
+        for cs in control_state.values():
+            cs["flight_approved"] = False
+            cs.pop("arm_approved_at", None)
+        for r in flight_requests.values():
+            if r.get("status") in ("approved", "pending"): r["status"] = "none"
+        for r in arm_requests.values():
+            r["status"] = "none"
         print(f"[INFO] State restored: {len(fleet_data)} drone(s), {len(GEOFENCE_ZONES)} zone(s)")
     except Exception as e:
         print(f"[WARN] load_state: {e}")
@@ -229,7 +237,7 @@ def pilot_status(drone_id):
         cs  = control_state.get(drone_id, {})
     req_status = req.get("status", "none")
     flight_ok  = cs.get("flight_approved", False)
-    if flight_ok or req_status == "approved": status = "approved"
+    if flight_ok:                              status = "approved"
     elif req_status == "denied":              status = "denied"
     elif req_status == "pending":             status = "waiting"
     else:                                     status = "none"
@@ -486,6 +494,13 @@ def _watchdog():
                       if now - d.get("last_seen", 0) < 10}
             changed = False
             for did, cs in list(control_state.items()):
+                if (cs.get("flight_approved") and did not in active
+                        and not fleet_data.get(did, {}).get("armed", False)):
+                    cs["flight_approved"] = False
+                    cs.pop("arm_approved_at", None)
+                    if did in flight_requests: flight_requests[did]["status"] = "none"
+                    print(f"[WATCHDOG] {did} offline and disarmed - approval cleared")
+                    changed = True
                 t0 = cs.get("arm_approved_at")
                 if t0 and now - t0 > ARM_APPROVAL_WINDOW_S:
                     cs["flight_approved"] = False
