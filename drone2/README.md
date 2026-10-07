@@ -39,3 +39,21 @@ TX/RX cross over. FC telemetry pins are 3.3 V logic, which the ESP32 accepts dir
 ArduPilot settings for the TELEM port used (replace `n` with its SERIAL number):
 `SERIALn_PROTOCOL = 2` (MAVLink 2), `SERIALn_BAUD = 57` (57600).
 Reboot the FC after changing them. Libraries: WiFiManager (tzapu, ESP32 build), ArduinoJson v6.
+
+## ESP8266 (NodeMCU) wiring
+`ESP8266_SWAP_UART` at the top of `drone2.ino` selects the wiring.
+
+**Recommended (`= 1`, swapped UART)** - FC no longer shares pins with USB:
+
+| FC TELEM pin | NodeMCU pin |
+|---|---|
+| TX | **D7** (GPIO13, RX) |
+| RX | **D8** (GPIO15, TX) |
+| GND | GND |
+
+Debug text goes to `Serial1` (TX only, **D4**/GPIO2) - read it with a USB-TTL adapter.
+D8 must stay low at power-up; an FC RX input is high-impedance and normally fine,
+but if the board will not boot with it connected, add a 10 kOhm resistor from D8 to GND.
+
+**Alternative (`= 0`)** - FC TX -> RX (GPIO3), FC RX -> TX (GPIO1). These pins are also
+USB: unplug the FC wires when flashing, and expect USB-serial/FC contention if USB is connected.

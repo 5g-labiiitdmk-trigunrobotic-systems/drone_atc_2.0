@@ -36,7 +36,13 @@
   #include <ESP8266HTTPClient.h>
   #include <ESP8266WebServer.h>
   typedef ESP8266WebServer LocalWebServer;
-  // ESP8266: FC MAVLink shares the hardware UART (RX/TX pins) with USB.
+  // ESP8266 UART options (pick ONE):
+  //  1 = swapped UART0: FC TX -> D7 (GPIO13), FC RX -> D8 (GPIO15). Recommended:
+  //      the FC no longer shares pins with USB. Debug text moves to Serial1
+  //      (TX only on D4/GPIO2, needs a USB-TTL adapter to read).
+  //  0 = default UART0: FC TX -> RX (GPIO3), FC RX -> TX (GPIO1). Shares the
+  //      pins with USB (unplug the FC wires to flash; debug on USB Serial).
+  #define ESP8266_SWAP_UART 1
   #define FC_SERIAL   Serial
 #endif
 #include <WiFiUdp.h>
@@ -97,8 +103,13 @@ void requestArmAuthority();
 void enforceArmLock();
 void sendTelemetry();
 
-#define DBG(x)    Serial.println(x)
-#define DBGf(...) Serial.printf(__VA_ARGS__)
+#if defined(ESP8266) && ESP8266_SWAP_UART
+  #define DBG_SERIAL Serial1
+#else
+  #define DBG_SERIAL Serial
+#endif
+#define DBG(x)    DBG_SERIAL.println(x)
+#define DBGf(...) DBG_SERIAL.printf(__VA_ARGS__)
 
 // =============================================================================
 //  UDP Server Discovery
@@ -488,9 +499,12 @@ void handleTest() {
 // =============================================================================
 
 void setup() {
-  Serial.begin(57600);          // debug (USB); on ESP8266 this is also the FC link
+  Serial.begin(57600);          // ESP8266: this is the FC link; ESP32: USB debug
 #if defined(ESP32)
   FC_SERIAL.begin(57600, SERIAL_8N1, FC_RX_PIN, FC_TX_PIN);
+#elif ESP8266_SWAP_UART
+  Serial.swap();                // UART0 -> GPIO13 (RX, D7) / GPIO15 (TX, D8)
+  Serial1.begin(115200);        // debug on D4 (TX only)
 #endif
   DBG("\n[BOOT] IIITDM Kurnool Drone Firmware v9 (ARM HANDSHAKE)");
   DBGf("[BOOT] Drone ID: %s\n", droneID);
