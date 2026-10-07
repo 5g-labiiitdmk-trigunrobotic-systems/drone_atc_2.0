@@ -21,3 +21,21 @@ Server discovery is automatic (the server broadcasts `DRONE-ATC:<port>` on UDP 2
 
 `../drone2_servo/` is the separate ESP32 servo-trigger sketch (previously
 mixed into this file).
+
+## ESP32 wiring (flight controller TELEM -> ESP32)
+Board: any ESP32 dev board (select "ESP32 Dev Module"). The sketch builds for
+ESP32 or ESP8266 automatically. On ESP32 the FC uses UART2 and USB stays free
+for the Serial Monitor.
+
+| FC TELEM pin | ESP32 pin | Note |
+|---|---|---|
+| TX  | GPIO16 (RX2) | FC transmit -> ESP receive |
+| RX  | GPIO17 (TX2) | ESP transmit -> FC receive |
+| GND | GND | common ground is required |
+| 5V  | not used | power the ESP32 from its own 5V BEC / USB, not the FC port |
+
+TX/RX cross over. FC telemetry pins are 3.3 V logic, which the ESP32 accepts directly.
+
+ArduPilot settings for the TELEM port used (replace `n` with its SERIAL number):
+`SERIALn_PROTOCOL = 2` (MAVLink 2), `SERIALn_BAUD = 57` (57600).
+Reboot the FC after changing them. Libraries: WiFiManager (tzapu, ESP32 build), ArduinoJson v6.

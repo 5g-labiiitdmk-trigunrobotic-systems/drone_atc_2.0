@@ -1,5 +1,5 @@
 /**
- * IIITDM KURNOOL — DRONE ESP8266 FIRMWARE v9 (ARM HANDSHAKE)
+ * IIITDM KURNOOL — DRONE ESP32 / ESP8266 FIRMWARE v9 (ARM HANDSHAKE)
  * =====================================================
  * ZERO CONFIG — no hardcoded IP.
  * ESP listens for UDP broadcast from Flask on boot.
@@ -22,9 +22,23 @@
  *   MAVLink      (copy mavlink/ folder next to this .ino)
  */
 
-#include <ESP8266WiFi.h>
-#include <ESP8266HTTPClient.h>
-#include <ESP8266WebServer.h>
+#if defined(ESP32)
+  #include <WiFi.h>
+  #include <HTTPClient.h>
+  #include <WebServer.h>
+  typedef WebServer LocalWebServer;
+  // ESP32: FC MAVLink on Serial2, USB Serial stays free for debug prints.
+  #define FC_SERIAL   Serial2
+  #define FC_RX_PIN   16      // <- FC TELEM TX
+  #define FC_TX_PIN   17      // -> FC TELEM RX
+#else
+  #include <ESP8266WiFi.h>
+  #include <ESP8266HTTPClient.h>
+  #include <ESP8266WebServer.h>
+  typedef ESP8266WebServer LocalWebServer;
+  // ESP8266: FC MAVLink shares the hardware UART (RX/TX pins) with USB.
+  #define FC_SERIAL   Serial
+#endif
 #include <WiFiUdp.h>
 #include "mavlink/common/mavlink.h"
 #include <ArduinoJson.h>
@@ -52,7 +66,7 @@ char serverIP[256]   = "";
 bool serverFound     = false;
 
 WiFiUDP udp;
-ESP8266WebServer localServer(80);
+LocalWebServer localServer(80);
 
 float         lat               = 0.0f;
 float         lon               = 0.0f;
@@ -137,7 +151,7 @@ void sendSetMode(uint8_t customMode) {
   uint8_t baseMode = lastBaseMode | MAV_MODE_FLAG_CUSTOM_MODE_ENABLED;
   mavlink_msg_set_mode_pack(255, 200, &msg, 1, baseMode, customMode);
   uint16_t len = mavlink_msg_to_send_buffer(buf, &msg);
-  Serial.write(buf, len);
+  FC_SERIAL.write(buf, len);
 }
 
 void sendCommandLong(uint16_t command,
@@ -148,7 +162,7 @@ void sendCommandLong(uint16_t command,
   mavlink_msg_command_long_pack(255, 200, &msg,
     1, 1, command, 0, p1, p2, p3, p4, p5, p6, p7);
   uint16_t len = mavlink_msg_to_send_buffer(buf, &msg);
-  Serial.write(buf, len);
+  FC_SERIAL.write(buf, len);
 }
 
 void sendVelocity(float vx, float vy, float vz) {
@@ -160,7 +174,7 @@ void sendVelocity(float vx, float vy, float vz) {
     MAV_FRAME_LOCAL_NED, type_mask,
     0, 0, 0, vx, vy, vz, 0, 0, 0, 0, 0);
   uint16_t len = mavlink_msg_to_send_buffer(buf, &msg);
-  Serial.write(buf, len);
+  FC_SERIAL.write(buf, len);
 }
 
 void sendDisarm() {
@@ -175,15 +189,15 @@ void requestDataStreams() {
   mavlink_msg_request_data_stream_pack(255, 200, &msg,
     1, 1, MAV_DATA_STREAM_EXTENDED_STATUS, 2, 1);
   len = mavlink_msg_to_send_buffer(buf, &msg);
-  Serial.write(buf, len);
+  FC_SERIAL.write(buf, len);
   mavlink_msg_request_data_stream_pack(255, 200, &msg,
     1, 1, MAV_DATA_STREAM_POSITION, 2, 1);
   len = mavlink_msg_to_send_buffer(buf, &msg);
-  Serial.write(buf, len);
+  FC_SERIAL.write(buf, len);
   mavlink_msg_request_data_stream_pack(255, 200, &msg,
     1, 1, MAV_DATA_STREAM_EXTRA1, 2, 1);
   len = mavlink_msg_to_send_buffer(buf, &msg);
-  Serial.write(buf, len);
+  FC_SERIAL.write(buf, len);
 }
 
 // =============================================================================
@@ -194,8 +208,8 @@ void parseMAVLink() {
   mavlink_message_t msg;
   mavlink_status_t  status;
 
-  while (Serial.available()) {
-    uint8_t c = Serial.read();
+  while (FC_SERIAL.available()) {
+    uint8_t c = FC_SERIAL.read();
     if (!mavlink_parse_char(MAVLINK_COMM_0, c, &msg, &status)) continue;
 
     switch (msg.msgid) {
@@ -474,7 +488,10 @@ void handleTest() {
 // =============================================================================
 
 void setup() {
-  Serial.begin(57600);
+  Serial.begin(57600);          // debug (USB); on ESP8266 this is also the FC link
+#if defined(ESP32)
+  FC_SERIAL.begin(57600, SERIAL_8N1, FC_RX_PIN, FC_TX_PIN);
+#endif
   DBG("\n[BOOT] IIITDM Kurnool Drone Firmware v9 (ARM HANDSHAKE)");
   DBGf("[BOOT] Drone ID: %s\n", droneID);
 
