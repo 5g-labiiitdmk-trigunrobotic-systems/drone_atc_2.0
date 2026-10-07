@@ -295,40 +295,41 @@ static void handleBaud() {
   web.send(200, "text/plain", "ok");
 }
 
-static const char PAGE[] PROGMEM = R"HTML(<!doctype html><html><head><meta name=viewport content="width=device-width,initial-scale=1">
-<title>Pixhawk data check</title><style>
-body{font-family:system-ui,sans-serif;margin:0;background:#0f1320;color:#e8ecf4}main{max-width:680px;margin:0 auto;padding:14px}
-.lights{display:flex;gap:12px}.light{flex:1;border-radius:14px;padding:16px;text-align:center;background:#2a2f45}
-.light h2{margin:0;font-size:13px;letter-spacing:.08em;color:#c7d0ea}.light .s{font-size:30px;font-weight:800;margin:8px 0}
-.good{background:#14502c}.bad{background:#5a1d1d}.wait{background:#4d4115}
-#sum{margin:12px 0;padding:14px;border-radius:12px;background:#171c2e;font-size:16px;line-height:1.4}
-.card{background:#171c2e;border-radius:12px;padding:12px;margin-top:10px}.card h3{margin:0 0 6px;font-size:12px;letter-spacing:.08em;color:#9aa6c4}
-.dim{color:#9aa6c4;font-size:13px;line-height:1.7;word-break:break-all}code{color:#d7e3ff}
-button{background:#2b3358;color:#fff;border:0;border-radius:10px;padding:11px 13px;font-size:14px;margin:10px 8px 0 0}
-</style></head><body><main>
-<div class=lights>
- <div class="light wait" id=lr><h2>PIXHAWK &rarr; ESP</h2><div class=s id=rs>...</div><div class=dim id=rd></div></div>
- <div class="light wait" id=lt><h2>ESP &rarr; PIXHAWK</h2><div class=s id=ts>...</div><div class=dim id=td></div></div>
-</div>
-<div id=sum>connecting...</div>
-<div class=card><h3>PIXHAWK</h3><div class=dim id=fc>-</div></div>
-<div class=card><h3>RAW DATA (last bytes received)</h3><div class=dim><code id=hex>-</code><br>message ids heard (id:count): <code id=ids>-</code></div></div>
-<div class=card><h3>COUNTERS</h3><div class=dim id=cnt>-</div></div>
-<button onclick="fetch('/send')">Send test now</button><button onclick="fetch('/reset')">Reset</button><button onclick="fetch('/scan')">Auto baud scan on/off</button>
-<br><button onclick="fetch('/baud?b=57600')">57600</button><button onclick="fetch('/baud?b=115200')">115200</button><button onclick="fetch('/baud?b=921600')">921600</button>
-</main><script>
-function lamp(el,st){el.className='light '+(st=='OK'?'good':(st=='NONE'||st=='NO REPLY'||st=='GARBAGE'?'bad':'wait'))}
-async function t(){try{const s=await (await fetch('/status')).json();
- sum.textContent=s.summary;
- lamp(lr,s.rx);rs.textContent=s.rx=='OK'?'WORKING':(s.rx=='FRAMES'?'FRAMES OK':(s.rx=='GARBAGE'?'GARBAGE':'NO DATA'));
- rd.innerHTML=s.rxBytes+' bytes &middot; '+s.valid+' valid frames<br>baud '+s.baud+(s.locked?' (locked)':(s.scan?' (scanning)':''));
- lamp(lt,s.tx);ts.textContent=s.tx=='OK'?'WORKING':(s.tx=='NO REPLY'?'NO REPLY':'TESTING');
- td.innerHTML=s.txBytes+' bytes sent ('+s.rounds+' rounds)<br>replies: '+(s.params+s.acks);
- fc.innerHTML=s.hb>0?('sysid '+s.fcSys+' comp '+s.fcComp+' &middot; vehicle type '+s.fcType+' &middot; autopilot '+s.fcAp+'<br>armed: '+s.armed+' &middot; mode '+s.mode+(s.sysid>=0?'<br>SYSID_THISMAV = '+s.sysid:'')+(s.text?'<br>last text: '+s.text:'')):'no Pixhawk heartbeat heard yet';
- hex.textContent=s.hex||'(nothing received)';ids.textContent=s.ids||'-';
- cnt.innerHTML='heartbeats '+s.hb+' &middot; bad/unrecognised '+s.bad+' &middot; own frames echoed back '+s.echo+'<br>param replies '+s.params+' &middot; command acks '+s.acks+' (result '+s.ackResult+') &middot; ms since last byte '+s.msRx;
-}catch(e){sum.textContent='lost connection to the ESP hotspot'}}
-setInterval(t,1000);t();</script></body></html>)HTML";
+static const char PAGE[] PROGMEM =
+  "<!doctype html><html><head><meta name=viewport content=\"width=device-width,initial-scale=1\">\n"
+  "<title>Pixhawk data check</title><style>\n"
+  "body{font-family:system-ui,sans-serif;margin:0;background:#0f1320;color:#e8ecf4}main{max-width:680px;margin:0 auto;padding:14px}\n"
+  ".lights{display:flex;gap:12px}.light{flex:1;border-radius:14px;padding:16px;text-align:center;background:#2a2f45}\n"
+  ".light h2{margin:0;font-size:13px;letter-spacing:.08em;color:#c7d0ea}.light .s{font-size:30px;font-weight:800;margin:8px 0}\n"
+  ".good{background:#14502c}.bad{background:#5a1d1d}.wait{background:#4d4115}\n"
+  "#sum{margin:12px 0;padding:14px;border-radius:12px;background:#171c2e;font-size:16px;line-height:1.4}\n"
+  ".card{background:#171c2e;border-radius:12px;padding:12px;margin-top:10px}.card h3{margin:0 0 6px;font-size:12px;letter-spacing:.08em;color:#9aa6c4}\n"
+  ".dim{color:#9aa6c4;font-size:13px;line-height:1.7;word-break:break-all}code{color:#d7e3ff}\n"
+  "button{background:#2b3358;color:#fff;border:0;border-radius:10px;padding:11px 13px;font-size:14px;margin:10px 8px 0 0}\n"
+  "</style></head><body><main>\n"
+  "<div class=lights>\n"
+  " <div class=\"light wait\" id=lr><h2>PIXHAWK &rarr; ESP</h2><div class=s id=rs>...</div><div class=dim id=rd></div></div>\n"
+  " <div class=\"light wait\" id=lt><h2>ESP &rarr; PIXHAWK</h2><div class=s id=ts>...</div><div class=dim id=td></div></div>\n"
+  "</div>\n"
+  "<div id=sum>connecting...</div>\n"
+  "<div class=card><h3>PIXHAWK</h3><div class=dim id=fc>-</div></div>\n"
+  "<div class=card><h3>RAW DATA (last bytes received)</h3><div class=dim><code id=hex>-</code><br>message ids heard (id:count): <code id=ids>-</code></div></div>\n"
+  "<div class=card><h3>COUNTERS</h3><div class=dim id=cnt>-</div></div>\n"
+  "<button onclick=\"fetch('/send')\">Send test now</button><button onclick=\"fetch('/reset')\">Reset</button><button onclick=\"fetch('/scan')\">Auto baud scan on/off</button>\n"
+  "<br><button onclick=\"fetch('/baud?b=57600')\">57600</button><button onclick=\"fetch('/baud?b=115200')\">115200</button><button onclick=\"fetch('/baud?b=921600')\">921600</button>\n"
+  "</main><script>\n"
+  "function lamp(el,st){el.className='light '+(st=='OK'?'good':(st=='NONE'||st=='NO REPLY'||st=='GARBAGE'?'bad':'wait'))}\n"
+  "async function t(){try{const s=await (await fetch('/status')).json();\n"
+  " sum.textContent=s.summary;\n"
+  " lamp(lr,s.rx);rs.textContent=s.rx=='OK'?'WORKING':(s.rx=='FRAMES'?'FRAMES OK':(s.rx=='GARBAGE'?'GARBAGE':'NO DATA'));\n"
+  " rd.innerHTML=s.rxBytes+' bytes &middot; '+s.valid+' valid frames<br>baud '+s.baud+(s.locked?' (locked)':(s.scan?' (scanning)':''));\n"
+  " lamp(lt,s.tx);ts.textContent=s.tx=='OK'?'WORKING':(s.tx=='NO REPLY'?'NO REPLY':'TESTING');\n"
+  " td.innerHTML=s.txBytes+' bytes sent ('+s.rounds+' rounds)<br>replies: '+(s.params+s.acks);\n"
+  " fc.innerHTML=s.hb>0?('sysid '+s.fcSys+' comp '+s.fcComp+' &middot; vehicle type '+s.fcType+' &middot; autopilot '+s.fcAp+'<br>armed: '+s.armed+' &middot; mode '+s.mode+(s.sysid>=0?'<br>SYSID_THISMAV = '+s.sysid:'')+(s.text?'<br>last text: '+s.text:'')):'no Pixhawk heartbeat heard yet';\n"
+  " hex.textContent=s.hex||'(nothing received)';ids.textContent=s.ids||'-';\n"
+  " cnt.innerHTML='heartbeats '+s.hb+' &middot; bad/unrecognised '+s.bad+' &middot; own frames echoed back '+s.echo+'<br>param replies '+s.params+' &middot; command acks '+s.acks+' (result '+s.ackResult+') &middot; ms since last byte '+s.msRx;\n"
+  "}catch(e){sum.textContent='lost connection to the ESP hotspot'}}\n"
+  "setInterval(t,1000);t();</script></body></html>";
 
 static void handleRoot() { web.send_P(200, "text/html", PAGE); }
 
