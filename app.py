@@ -243,6 +243,21 @@ def pilot_status(drone_id):
     else:                                     status = "none"
     return jsonify({"approved":(status=="approved"),"status":status})
 
+@app.route("/pilot/arm/<drone_id>", methods=["POST","OPTIONS"])
+def pilot_arm(drone_id):
+    """Pilot presses ARM after authority approval. The ESP is the ONLY thing
+    that can arm the FC (stick/switch arming is disabled in the FC), so this
+    is the single gate: no approval -> no arm command is ever queued."""
+    with lock:
+        approved = control_state.get(drone_id, {}).get("flight_approved", False)
+        blocked  = control_state.get(drone_id, {}).get("override") or control_state.get(drone_id, {}).get("breach")
+    if not approved:
+        return jsonify({"status":"forbidden","reason":"Flight not approved by authority"}), 403
+    if blocked:
+        return jsonify({"status":"forbidden","reason":"Drone under authority override / geofence breach"}), 403
+    print(f"[PILOT ARM] {drone_id} - arm command queued")
+    return enqueue_cmd(drone_id, "arm")
+
 @app.route("/pilot/requests")
 def get_pilot_requests():
     with lock:

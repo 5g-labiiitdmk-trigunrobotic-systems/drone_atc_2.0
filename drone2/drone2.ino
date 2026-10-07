@@ -418,6 +418,16 @@ void pollCommands() {
         if      (type == "rtl")   sendSetMode(MODE_RTL);
         else if (type == "land")  sendSetMode(MODE_LAND);
         else if (type == "kill")  sendDisarm();
+        else if (type == "arm") {
+          // Only path that can arm the FC (stick/switch arming is disabled in
+          // the FC). Normal pre-arm checks apply (param2 = 0, no force).
+          if (flightApproved && heartBeatOK && !armed) {
+            DBG("[ARM] Approved + pilot confirmed -> arming FC");
+            sendCommandLong(400, 1, 0, 0, 0, 0, 0, 0);
+          } else {
+            DBG("[ARM] Arm command ignored (not approved / no heartbeat / already armed)");
+          }
+        }
         else if (type == "hover") sendSetMode(MODE_LOITER);
         else if (type == "move") {
           if (!guidedRequested && flightMode != "GUIDED") {

@@ -2066,10 +2066,10 @@
         + '<div class="sbox ' + sbCls + '"><div class="sbox-t">' + sbT + '</div><div class="sbox-d">' + sbD + '</div></div>'
         + '<div class="act-grid">'
         + (fs === "none" || fs === "denied"
-          ? '<button class="abtn a-req' + (online ? "" : " full") + '" ' + (online ? 'onclick="reqFlight(\'' + d.id +\')"': 'disabled') +(online ? "" : " disabled") + '>🛫 REQUEST FLIGHT</button>' + (online ? '<button class="abtn a-edt" onclick="editDrone(\'' + d.id + '\')">✎ EDIT</button>' : '')
+          ? '<button class="abtn a-req' + (online ? "" : " full") + '" ' + (online ? 'onclick="reqFlight(\'' + d.id + '\')"': 'disabled') +(online ? "" : " disabled") + '>🛫 REQUEST FLIGHT</button>' + (online ? '<button class="abtn a-edt" onclick="editDrone(\'' + d.id + '\')">✎ EDIT</button>' : '')
       : fs === "pending"
         ? '<button class="abtn a-cnl" onclick="cancelReq(\'' + d.id + '\')">⏹ CANCEL REQUEST</button><button class="abtn a-edt" onclick="editDrone(\'' + d.id + '\')">✎ EDIT</button>'
-        : '<button class="abtn a-req" disabled>✓ APPROVED</button><button class="abtn a-edt" onclick="editDrone(\'' + d.id + '\')">✎ EDIT</button>'
+        : '<button class="abtn a-req full" onclick="armDrone(\'' + d.id + '\')">🚁 ARM MOTORS</button><button class="abtn a-req" disabled>✓ APPROVED</button><button class="abtn a-edt" onclick="editDrone(\'' + d.id + '\')">✎ EDIT</button>'
     )
       +'<button class="abtn a-del full" onclick="delDrone(\'' + d.id + '\')">🗑 REMOVE DRONE</button></div>'
         + '<div class="dv"></div>'
@@ -2146,6 +2146,13 @@
           if (d) { d.flight_status = "pending"; saveDrones(pilot.username, drones); }
           refreshUI(id);
         }).catch(function () { alert("Cannot reach ATC server. Is Flask running?"); });
+    }
+    function armDrone(id) {
+      if (!confirm("Propellers clear and area safe?\n\nThis will ARM the motors on " + id + ".")) return;
+      fetch(BASE + "/pilot/arm/" + id, { method: "POST" })
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (x) { alert(x.ok ? "Arm command sent to " + id + "." : "Cannot arm: " + (x.j.reason || x.j.status)); })
+        .catch(function () { alert("Cannot reach ATC server. Is Flask running?"); });
     }
     function cancelReq(id) {
       var drones = getDrones(pilot.username);

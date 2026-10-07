@@ -57,3 +57,19 @@ but if the board will not boot with it connected, add a 10 kOhm resistor from D8
 
 **Alternative (`= 0`)** - FC TX -> RX (GPIO3), FC RX -> TX (GPIO1). These pins are also
 USB: unplug the FC wires when flashing, and expect USB-serial/FC contention if USB is connected.
+
+## Making arming permission-gated (required one-time FC setup)
+An ESP that only listens cannot stop a flight controller from arming, so the
+ESP is made the **only** thing that can arm it. Set these on the FC (ArduPilot),
+then reboot it:
+
+| Parameter | Value | Why |
+|---|---|---|
+| `ARMING_RUDDER` | `0` | disables stick (rudder) arming |
+| `RCx_OPTION` | none set to `41` (ArmDisarm), `153`, `154` | no RC arm switch |
+| (do not connect another GCS/radio that can send arm commands) | | |
+
+Flow: Pilot portal **REQUEST FLIGHT** -> authority **APPROVE** -> pilot portal
+**ARM MOTORS** (confirm dialog) -> server `/pilot/arm/<id>` (403 unless approved)
+-> command queue -> ESP sends the MAVLink arm command (normal pre-arm checks apply).
+The disarm-if-armed-without-approval lock stays as a backup.
