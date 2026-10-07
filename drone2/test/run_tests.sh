@@ -28,4 +28,11 @@ g++ -std=c++17 -x c++ -DESP8266 -Wall -Wno-unused-function -Wno-address-of-packe
 for sc in encoder two_way two_way_mavlink1 rx_only no_data echo armed_parse baud_scan resync json page reset; do
   build/pt "$sc" || status=1
 done
+# --- pixhawk_esp_simple_check ---
+mkdir -p build/simple_inc && printf '#pragma once\n' > build/simple_inc/SoftwareSerial.h
+g++ -std=c++17 -x c++ -Wall -Wno-unused-function -Wno-address-of-packed-member -Wno-misleading-indentation \
+    -Istubs -Ibuild/simple_inc -o build/simple simple_harness.cpp
+for sc in all_ok all_ok_mavlink1 rx_only no_data garbage echo requests flaky_start; do
+  build/simple "$sc" || status=1
+done
 exit $status
