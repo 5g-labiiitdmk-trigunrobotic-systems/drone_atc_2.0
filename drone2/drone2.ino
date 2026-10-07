@@ -30,8 +30,7 @@
  *
  * LIBRARIES (Arduino IDE / PlatformIO)
  *   WiFiManager (tzapu), ArduinoJson v6 (bblanchon),
- *   MAVLink C headers: copy the mavlink/c_library_v2 files into
- *   drone2/mavlink/ so that  mavlink/common/mavlink.h  exists.
+ *   MAVLink C headers: already bundled in drone2/mavlink/ (nothing to install).
  * BOARD: NodeMCU 1.0 (ESP-12E) or any ESP8266.
  */
 

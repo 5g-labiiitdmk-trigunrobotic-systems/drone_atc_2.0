@@ -20,8 +20,8 @@
  * Same wiring as the flight firmware:
  *   FC TELEM TX -> D7 (GPIO13)   FC TELEM RX -> D8 (GPIO15)   GND -> GND
  * FC settings: SERIALn_PROTOCOL = 2, SERIALn_BAUD = 57 (57600).
- * Libraries: none besides the ESP8266 core + MAVLink headers copied into
- * drone2_linktest/mavlink/ (so mavlink/common/mavlink.h exists).
+ * Libraries: none besides the ESP8266 core; the MAVLink headers are bundled in
+ * drone2_linktest/mavlink/ (open this sketch from its own folder).
  */
 #if !defined(ESP8266)
 #error "Select an ESP8266 board (NodeMCU)."

@@ -6,8 +6,9 @@ Board: NodeMCU / any ESP8266. (`../drone2_servo/` is a separate ESP32 servo sket
 ## Install
 1. Arduino IDE -> board **NodeMCU 1.0 (ESP-12E)** (ESP8266 core).
 2. Library Manager: **WiFiManager** (tzapu) and **ArduinoJson 6.x**.
-3. MAVLink: copy the contents of <https://github.com/mavlink/c_library_v2> into
-   `drone2/mavlink/` so that `drone2/mavlink/common/mavlink.h` exists.
+3. MAVLink headers are already bundled in `drone2/mavlink/` (MIT licence, see its `NOTICE.md`).
+   Nothing to download. If you ever see `fatal error: mavlink/common/mavlink.h: No such file`,
+   you opened `drone2.ino` outside its folder or deleted `mavlink/`: open it from the repo's `drone2/` folder.
 4. Edit `DRONE_ID` at the top of `drone2.ino` (must equal the ID registered in the pilot portal, case-sensitive).
 5. Flash. First boot: join the `DroneSetup` WiFi hotspot once and enter your WiFi.
    The server is found automatically (UDP broadcast); `SERVER_FALLBACK_URL` is optional.
@@ -60,4 +61,4 @@ It does not test the real radio, UART timing or the flight controller itself - b
 `../drone2_linktest/drone2_linktest.ino` is a standalone diagnostic. It makes its own hotspot
 `DroneLinkTest` (password `12345678`); open `http://192.168.4.1` for a live verdict:
 FC -> ESP (heartbeats), ESP -> FC (the FC must answer a parameter read and a command), and an
-echo test (unplug the FC, jumper D7 to D8). Copy the MAVLink headers into `drone2_linktest/mavlink/` too.
+echo test (unplug the FC, jumper D7 to D8). Its MAVLink headers are bundled in `drone2_linktest/mavlink/`.
