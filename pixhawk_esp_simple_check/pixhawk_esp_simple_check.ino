@@ -125,7 +125,7 @@ void loop() {
     if (rxOk && txOk)        Serial.println(">>> ALL OK - connection is good in BOTH directions");
     else if (rxOk && rounds >= 4) Serial.println(">>> PROBLEM: Pixhawk -> ESP works but ESP -> Pixhawk does NOT. Check the wire D8 -> Pixhawk TELEM RX pin (pin 3), GND, and SERIALn_PROTOCOL = 2. Test the ESP alone: unplug the Pixhawk, jumper D7 to D8.");
     else if (rxOk)           Serial.println(">>> Pixhawk -> ESP works, still testing ESP -> Pixhawk...");
-    else if (echo > 0)       Serial.println(">>> PROBLEM: the ESP is hearing itself (D7 and D8 are connected together). Connect the Pixhawk instead.");
+    else if (echo > 0)       Serial.println(">>> JUMPER TEST PASSED: the ESP is hearing itself (D7 jumpered to D8), so its D8 output works. Remove the jumper and connect the Pixhawk.");
     else if (rxBytes > 0)    Serial.println(">>> PROBLEM: data arrives but is not valid MAVLink. Check SERIALn_BAUD = 57 (57600), SERIALn_PROTOCOL = 2 and the GND wire.");
     else                     Serial.println(">>> PROBLEM: NO data from the Pixhawk. Check Pixhawk TX -> D7, GND, that the Pixhawk is powered, and which TELEM port you used.");
   }
