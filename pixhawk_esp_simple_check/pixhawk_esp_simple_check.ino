@@ -15,12 +15,13 @@
 #include <ESP8266WiFi.h>
 #include <SoftwareSerial.h>
 
-#define BAUD 57600
+#define BAUD 57600                         // if ESP -> Pixhawk fails but the jumper test passes: set the Pixhawk SERIALn_BAUD = 19 and this to 19200
 SoftwareSerial fc(13, 15);                 // RX = D7 (GPIO13), TX = D8 (GPIO15)
 
 uint32_t rxBytes = 0, goodFrames = 0, heartbeats = 0, replies = 0, rounds = 0, echo = 0;
 unsigned long lastRound = 0, lastReport = 0;
 uint8_t seqTx = 0;
+uint8_t tgtSys = 1, tgtComp = 1;            // the Pixhawk's own system/component id (learned from its heartbeat)
 
 // CRC_EXTRA of the MAVLink messages an ArduPilot sends (needed to check each frame)
 static int crcExtra(uint32_t id) {
@@ -61,7 +62,7 @@ static void sendRound(bool mavlink1) {
   sendFrame(0, hb, 9, 50, mavlink1);
   uint8_t pl[20] = {0};
   pl[0] = 0xFF; pl[1] = 0xFF;                       // param index -1 = "find by name"
-  pl[2] = 1; pl[3] = 1;                             // Pixhawk system 1, component 1
+  pl[2] = tgtSys; pl[3] = tgtComp;                  // the Pixhawk answers only if this matches its own id
   memcpy(pl + 4, "SYSID_THISMAV", 13);
   sendFrame(20, pl, 20, 214, mavlink1);
 }
@@ -91,7 +92,7 @@ static void feed(uint8_t b) {
       if (sys == 255 && comp == 200) echo++;                    // our own frame came back (TX wired to RX)
       else {
         goodFrames++;
-        if (id == 0 && p[5] != 8 && p[4] != 6) heartbeats++;    // heartbeat of a real autopilot
+        if (id == 0 && p[5] != 8 && p[4] != 6) { heartbeats++; tgtSys = sys; tgtComp = comp; }   // heartbeat of a real autopilot
         if (id == 22 && !strncmp((const char *)p + 8, "SYSID_THISMAV", 13)) replies++;   // answer to our request
       }
       memmove(buf, buf + need, len - need); len -= need;
@@ -120,7 +121,7 @@ void loop() {
     bool rxOk = heartbeats > 0;                      // Pixhawk -> ESP
     bool txOk = replies > 0;                         // ESP -> Pixhawk (the Pixhawk answered us)
     Serial.println("\n===== Pixhawk <-> ESP8266 =====");
-    Serial.printf("Pixhawk -> ESP : %s   (bytes %lu, heartbeats %lu)\n", rxOk ? "OK" : "NOT OK", (unsigned long)rxBytes, (unsigned long)heartbeats);
+    Serial.printf("Pixhawk -> ESP : %s   (bytes %lu, heartbeats %lu, Pixhawk id %u/%u)\n", rxOk ? "OK" : "NOT OK", (unsigned long)rxBytes, (unsigned long)heartbeats, tgtSys, tgtComp);
     Serial.printf("ESP -> Pixhawk : %s   (requests %lu, answers %lu)\n", txOk ? "OK" : "NOT OK", (unsigned long)rounds, (unsigned long)replies);
     if (rxOk && txOk)        Serial.println(">>> ALL OK - connection is good in BOTH directions");
     else if (rxOk && rounds >= 4) Serial.println(">>> PROBLEM: Pixhawk -> ESP works but ESP -> Pixhawk does NOT. Check the wire D8 -> Pixhawk TELEM RX pin (pin 3), GND, and SERIALn_PROTOCOL = 2. Test the ESP alone: unplug the Pixhawk, jumper D7 to D8.");

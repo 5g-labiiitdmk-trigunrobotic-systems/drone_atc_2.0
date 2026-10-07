@@ -27,6 +27,7 @@ struct SoftwareSerial {
 #include "../../pixhawk_esp_simple_check/pixhawk_esp_simple_check.ino"
 #include "mavlink/common/mavlink.h"
 
+static uint8_t pxSys = 1;
 static bool pxHears = true, pxAlive = true, loopback = false, pxV1 = false;
 static std::vector<mavlink_message_t> got;
 static void feedMsg(const mavlink_message_t& m) {
@@ -35,14 +36,14 @@ static void feedMsg(const mavlink_message_t& m) {
   uint8_t b[300]; mavlink_message_t c = m; uint16_t n = mavlink_msg_to_send_buffer(b, &c);
   for (int i = 0; i < n; i++) fc.rx.push_back(b[i]);
 }
-static void pixBeat() { mavlink_message_t m; mavlink_msg_heartbeat_pack_chan(1, 1, MAVLINK_COMM_2, &m, MAV_TYPE_QUADROTOR, MAV_AUTOPILOT_ARDUPILOTMEGA, MAV_MODE_FLAG_CUSTOM_MODE_ENABLED, 0, MAV_STATE_STANDBY); feedMsg(m); }
+static void pixBeat() { mavlink_message_t m; mavlink_msg_heartbeat_pack_chan(pxSys, 1, MAVLINK_COMM_2, &m, MAV_TYPE_QUADROTOR, MAV_AUTOPILOT_ARDUPILOTMEGA, MAV_MODE_FLAG_CUSTOM_MODE_ENABLED, 0, MAV_STATE_STANDBY); feedMsg(m); }
 static void drain() {
   static mavlink_message_t m; static mavlink_status_t st;
   for (uint8_t b : fc.tx) {
     if (loopback) fc.rx.push_back(b);
     if (mavlink_parse_char(MAVLINK_COMM_1, b, &m, &st)) {
       got.push_back(m);
-      if (pxHears && m.msgid == MAVLINK_MSG_ID_PARAM_REQUEST_READ) { mavlink_message_t r; mavlink_msg_param_value_pack_chan(1, 1, MAVLINK_COMM_2, &r, "SYSID_THISMAV", 1.0f, MAV_PARAM_TYPE_UINT8, 1, 0); feedMsg(r); }
+      if (pxHears && m.msgid == MAVLINK_MSG_ID_PARAM_REQUEST_READ && [&]{ mavlink_param_request_read_t q; mavlink_msg_param_request_read_decode(&m, &q); return q.target_system == pxSys; }()) { mavlink_message_t r; mavlink_msg_param_value_pack_chan(pxSys, 1, MAVLINK_COMM_2, &r, "SYSID_THISMAV", 1.0f, MAV_PARAM_TYPE_UINT8, 1, 0); feedMsg(r); }
     }
   }
   fc.tx.clear();
@@ -69,5 +70,6 @@ int main(int argc, char** argv) {
     CHECK(hbs >= 2, "our heartbeat is also sent each round and passes the real CRC check");
     CHECK(n >= 2 && v1 && v2, "requests pass the REAL library's CRC check, in MAVLink 1 and 2"); CHECK(ok, "target 1/1, index -1, name SYSID_THISMAV");
   }
+  if (sc == "other_sysid") { pxSys = 7; run(9000); CHECK(has(reportText(), "ALL OK") && has(reportText(), "id 7/1"), "works when the Pixhawk system id is not 1 (learned from its heartbeat)"); }
   if (sc == "flaky_start") { run(2000); pxAlive = true; pxHears = true; run(8000); CHECK(has(reportText(), "ALL OK"), "becomes ALL OK once the link works"); }
   printf(fails ? "RESULT: %d FAILED\n" : "RESULT: all passed\n", fails); return fails ? 1 : 0; }
