@@ -71,6 +71,8 @@ unsigned long lastMoveTime      = 0;
 bool          prevArmed         = false;
 bool          flightApproved    = false;
 bool          wasArmedInFlight  = false;
+bool          armAllowed        = false;   // latched at the moment of arming
+unsigned long approvalHoldoffUntil = 0;    // ignore server approval briefly after a disarm
 unsigned long lastArmRequestMs  = 0;
 #define ARM_REQUEST_MIN_GAP_MS 5000
 #define DISARM_RETRY_MS        250
@@ -208,7 +210,9 @@ void parseMAVLink() {
         // FIX: Strict arming prevention – only allow if approved
         // Level-triggered: keep forcing disarm on EVERY heartbeat while armed
         // without approval (an edge-only check gave up after one failed try).
-        if (currentArmed && !flightApproved) {
+        if (currentArmed && !prevArmed) armAllowed = flightApproved;   // decide once, at arming
+        if (!currentArmed) armAllowed = false;
+        if (currentArmed && !armAllowed) {
           armed = true;
           enforceArmLock();
         }
@@ -219,6 +223,7 @@ void parseMAVLink() {
           DBG("[INFO] Disarmed — authorization reset");
           flightApproved = false;
           wasArmedInFlight = false;
+          approvalHoldoffUntil = millis() + 3000;
         }
         prevArmed = currentArmed;
         armed     = currentArmed;
@@ -253,7 +258,7 @@ void parseMAVLink() {
         // carries the armed flag can lag up to 1 s. React to the text first.
         mavlink_statustext_t st;
         mavlink_msg_statustext_decode(&msg, &st);
-        if (strstr(st.text, "Arming motors") && !flightApproved) {
+        if (strstr(st.text, "Arming motors") && !flightApproved && !armAllowed) {
           DBGf("[SAFETY] FC says '%s' without approval\n", st.text);
           armed = true;
           enforceArmLock();
@@ -356,7 +361,7 @@ void checkApproval() {
     if (!deserializeJson(doc, http.getString())) {
       bool isApproved = doc["approved"] | false;
       String status   = doc["status"]   | "none";
-      if (isApproved && !flightApproved) {
+      if (isApproved && !flightApproved && millis() >= approvalHoldoffUntil) {
         flightApproved = true;
         DBG("[INFO] Flight APPROVED");
       }
@@ -534,7 +539,7 @@ void loop() {
 
   // FIX: Check approval every 1 second (was 2) for faster response
   static unsigned long lastApprovalCheck = 0;
-  if (!flightApproved && millis() - lastApprovalCheck > 1000) {
+  if (!armed && millis() - lastApprovalCheck > 1000) {
     checkApproval();
     lastApprovalCheck = millis();
   }
