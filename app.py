@@ -424,6 +424,31 @@ def authority_land(drone_id):
         return jsonify({"status":"blocked","reason":"Take override first"}), 403
     return enqueue_cmd(drone_id, "land")
 
+@app.route("/authority/arm/<drone_id>", methods=["GET","POST"])
+def authority_arm(drone_id):
+    """Authority arms the drone remotely. Needs override and no geofence breach."""
+    if not check_auth(): return auth_required()
+    with lock:
+        cs = control_state.get(drone_id, {})
+        d  = fleet_data.get(drone_id, {})
+    if cs.get("breach"):
+        return jsonify({"status":"blocked","reason":"Geofence breach - will not arm"}), 403
+    if not cs.get("override"):
+        return jsonify({"status":"blocked","reason":"Take override first"}), 403
+    if d.get("armed"):
+        return jsonify({"status":"blocked","reason":"Drone is already armed"}), 409
+    return enqueue_cmd(drone_id, "auth_arm")
+
+@app.route("/authority/disarm/<drone_id>", methods=["GET","POST"])
+def authority_disarm(drone_id):
+    """Normal (non-forced) disarm: the FC itself refuses it while flying."""
+    if not check_auth(): return auth_required()
+    with lock:
+        cs = control_state.get(drone_id, {})
+    if not (cs.get("override") or cs.get("breach")):
+        return jsonify({"status":"blocked","reason":"Take override first"}), 403
+    return enqueue_cmd(drone_id, "disarm")
+
 @app.route("/authority/move/<drone_id>", methods=["POST"])
 def authority_move(drone_id):
     if not check_auth(): return auth_required()

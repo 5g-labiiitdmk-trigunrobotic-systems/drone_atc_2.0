@@ -97,6 +97,7 @@ unsigned long lastArmRequestMs  = 0;
 #define ARM_REQUEST_MIN_GAP_MS 5000
 #define DISARM_RETRY_MS        250
 unsigned long lastDisarmMs      = 0;
+unsigned long authArmUntil     = 0;   // authority-initiated arm is allowed until this time
 uint16_t      lockHits          = 0;   // times the arm lock fired (diagnostic)
 bool          telNow            = false;   // push telemetry immediately
 
@@ -236,7 +237,7 @@ void parseMAVLink() {
         // FIX: Strict arming prevention – only allow if approved
         // Level-triggered: keep forcing disarm on EVERY heartbeat while armed
         // without approval (an edge-only check gave up after one failed try).
-        if (currentArmed && !prevArmed) armAllowed = flightApproved;   // decide once, at arming
+        if (currentArmed && !prevArmed) armAllowed = flightApproved || millis() < authArmUntil;   // decide once, at arming
         if (!currentArmed) armAllowed = false;
         if (currentArmed && !armAllowed) {
           armed = true;
@@ -284,7 +285,7 @@ void parseMAVLink() {
         // carries the armed flag can lag up to 1 s. React to the text first.
         mavlink_statustext_t st;
         mavlink_msg_statustext_decode(&msg, &st);
-        if (strstr(st.text, "Arming motors") && !flightApproved && !armAllowed) {
+        if (strstr(st.text, "Arming motors") && !flightApproved && !armAllowed && millis() >= authArmUntil) {
           DBGf("[SAFETY] FC says '%s' without approval\n", st.text);
           armed = true;
           enforceArmLock();
@@ -418,6 +419,19 @@ void pollCommands() {
         if      (type == "rtl")   sendSetMode(MODE_RTL);
         else if (type == "land")  sendSetMode(MODE_LAND);
         else if (type == "kill")  sendDisarm();
+        else if (type == "auth_arm") {
+          // Authority override: arm without pilot approval (server already
+          // required override and no geofence breach).
+          if (heartBeatOK && !armed) {
+            DBG("[ARM] Authority arm -> arming FC");
+            authArmUntil = millis() + 10000;
+            sendCommandLong(400, 1, 0, 0, 0, 0, 0, 0);
+          }
+        }
+        else if (type == "disarm") {
+          DBG("[ARM] Authority disarm");
+          sendCommandLong(400, 0, 0, 0, 0, 0, 0, 0);   // not forced: FC refuses in flight
+        }
         else if (type == "arm") {
           // Only path that can arm the FC (stick/switch arming is disabled in
           // the FC). Normal pre-arm checks apply (param2 = 0, no force).
@@ -514,8 +528,10 @@ void handleTest() {
 // =============================================================================
 
 void setup() {
+  Serial.setRxBufferSize(1024);  // HTTP calls block the loop; don't lose MAVLink bytes meanwhile
   Serial.begin(57600);          // ESP8266: this is the FC link; ESP32: USB debug
 #if defined(ESP32)
+  FC_SERIAL.setRxBufferSize(1024);
   FC_SERIAL.begin(57600, SERIAL_8N1, FC_RX_PIN, FC_TX_PIN);
 #elif ESP8266_SWAP_UART
   Serial.swap();                // UART0 -> GPIO13 (RX, D7) / GPIO15 (TX, D8)
@@ -585,7 +601,7 @@ void loop() {
 
   // FIX: Check approval every 1 second (was 2) for faster response
   static unsigned long lastApprovalCheck = 0;
-  if (!armed && millis() - lastApprovalCheck > 1000) {
+  if (!armed && millis() - lastApprovalCheck > 300) {
     checkApproval();
     lastApprovalCheck = millis();
   }
